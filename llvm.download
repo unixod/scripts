@@ -1,0 +1,195 @@
+#!/bin/bash
+
+
+########################
+# Setup error handling #
+########################
+
+set -o nounset  # Prevent acidental usage of uninitialized variables
+set -o errtrace # Inherit trap on ERR for functions and subshells
+
+# sig: <err-code> <line-number> <command> ${BASH_LINENO[@]} "${FUNCNAME[@]}")"
+function trapErr {
+    local -r err_code=$1
+    local -r line=$2
+    local -r command=$3
+    local -r call_chain_str=$4
+    echo -n "[ERROR] ${0##*/}: '$command' failed at line $line - exited with status: $err_code"
+
+    # Form call chain string (if necessary).
+    shift 3
+    if [ $# -ge 3 ]; then
+        echo -n ". Call chain: "
+        declare -r -a arr=("$@")
+        local -r len=$(($# / 2))
+        for i in $(seq $(($len - 1)) -1 0); do
+            echo -n "${arr[$i + $len]}"
+            if [ $i -ne 0 ]; then
+                echo -n ":${arr[$i-1]} -> "
+            else
+                echo -n ":$line"
+            fi
+        done
+        
+    fi
+    echo
+    exit 1
+}
+
+trap 'trapErr $? $LINENO "$BASH_COMMAND" ${BASH_LINENO[@]} "${FUNCNAME[@]}"' ERR
+
+
+
+### Check for correctness of arguments.
+
+if [ $# -ne 1 ]; then
+    echo "Invalid number of arguments."
+    echo "usage: $(basename $0) <version number>"
+    exit 1
+fi
+
+##################
+# Constants      #
+##################
+readonly version=$1
+
+# The following constants must contain absolute path.
+readonly archives_dir=$(pwd)/archives
+readonly llvm_sources_dir=$(pwd)/llvm-${version}.src
+readonly build_dir=$(pwd)/llvm-${version}.build
+readonly install_dir=$(pwd)/llvm-${version}
+
+#################
+# Facilities    #
+#################
+function logINFO: {
+    echo "[INFO] ${0##*/}: $@"
+}
+
+function fail: {
+    echo "[FAIL] ${0##*/}: $@"
+    exit 1
+}
+
+
+# sig: <package-name>
+function packageArchName {
+    local -r pkg_name=$1
+    if [ "$pkg_name" != clang ]; then
+        echo ${pkg_name}-${version}.src.tar.xz
+    else
+        echo cfe-${version}.src.tar.xz
+    fi
+}
+
+function packageContentDir {
+    local -r pkg_name=$1
+    if [ "$pkg_name" != clang ]; then
+        echo ${pkg_name}-${version}.src
+    else
+        echo cfe-${version}.src
+    fi  
+}
+
+
+# sig: <package-name>
+# This function checks if the archive of a package satisfies the following requirements
+# 1. At root there is only one directory with name: ${pkg_name}-${version}.src;
+# 2. Relative paths are used;
+function checkArchContent {
+    local -r pkg_name=$1
+    local -r arch_file=${archives_dir}/$(packageArchName "$pkg_name")
+    
+    local -r arch_l1_content=$(tar --exclude '*/*' -tf "$arch_file")
+
+    if [[ ! "$arch_l1_content" =~ ^$(packageContentDir "$pkg_name")/$ ]]; then
+        fail: "Archive: '${arch_file}' has unexpected file structure inside."
+    fi
+}
+
+# sig: <package-name>
+function downloadArch {
+    local -r pkg_name=$1
+    local -r arch_file=$(packageArchName "$pkg_name")
+    local -r url=http://releases.llvm.org/${version}/${arch_file}
+    
+    mkdir -p "$archives_dir"
+    pushd "$archives_dir" > /dev/null
+    if [ ! -r "$arch_file" ]; then
+        logINFO: "Downloading $url (detination: $archives_dir)..." 
+        wget --quiet -nc "$url" # Download only if file doesn't exist.
+    else
+        logINFO: "Package has already downloaded, skip downloading step."
+    fi
+    checkArchContent "$pkg_name"
+    popd > /dev/null
+}
+
+# sig: <package-name> <description> [<absolute-path-to-extract>]
+function fetchPackage {
+    local -r pkg_name=$1
+    local -r description=$2
+
+    logINFO: "Fetching ${description}..."
+    downloadArch "$pkg_name"
+
+    if [ $# -eq 3 ]; then
+        local -r dest_dir=$3          # must be absolute
+        pushd "$dest_dir" > /dev/null
+        if [ ! -r "$pkg_name" ]; then
+            logINFO: "Extracting to $dest_dir"
+            tar xJkf "${archives_dir}/$(packageArchName "$pkg_name")"
+            mv "$(packageContentDir "$pkg_name")" "$pkg_name"
+        else
+            logINFO: "Packge has already extracted, skip extraction step."
+        fi
+        popd > /dev/null
+    else
+        if [ ! -r "$(packageContentDir "$pkg_name")" ]; then
+            logINFO: "Extracting to the current work directory..."
+            tar xJkf "${archives_dir}/$(packageArchName "$pkg_name")"
+        else
+            logINFO: "Packge has already extracted, skip extraction step."
+        fi
+    fi
+}
+
+
+### Make sure that neither build nor install directories exist.
+
+[ ! -d "$build_dir" ] || fail: "Build directory: '$build_dir' already exists."
+[ ! -d "$install_dir" ] || fail: "Install directory: '$install_dir' already exists."
+
+
+### Fetch packages.
+
+fetchPackage llvm "LLVM"
+fetchPackage clang "Clang" "$(pwd)/$(packageContentDir llvm)/tools"
+fetchPackage polly "Polly Loop Optimizer" "$(pwd)/$(packageContentDir llvm)/tools"
+fetchPackage lld "LLD linker" "$(pwd)/$(packageContentDir llvm)/tools"
+fetchPackage compiler-rt "Compiler-RT" "$(pwd)/$(packageContentDir llvm)/projects"
+
+
+### Build.
+
+mkdir "$build_dir"
+
+pushd "$build_dir" > /dev/null 
+cmake -G Ninja \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_INSTALL_PREFIX="llvm-${version}" \
+      -DLLVM_USE_LINKER=gold \
+      -DLLVM_TARGETS_TO_BUILD=host \
+      -DLLVM_INCLUDE_EXAMPLES=Off \
+      -DLLVM_INCLUDE_TESTS=Off \
+      -DLLVM_ENABLE_EH=On \
+      -DLLVM_ENABLE_RTTI=On \
+      -DLLVM_OPTIMIZED_TABLEGEN=On \
+      "$llvm_sources_dir"
+popd > /dev/null
+
+#-DLLVM_CCACHE_BUILD=On
+# or
+#-DCMAKE_C_COMPILER_LAUNCHER=ccache 
+#-DCMAKE_CXX_COMPILER_LAUNCHER=ccache 
+
