@@ -58,6 +58,7 @@ readonly archives_dir=$(pwd)/archives
 readonly llvm_sources_dir=$(pwd)/llvm-${version}.src
 readonly build_dir=$(pwd)/llvm-${version}.build
 readonly install_dir=$(pwd)/llvm-${version}
+readonly llvm_ccache_dir=$(pwd)/llvm-${version}.ccache
 
 #################
 # Facilities    #
@@ -176,6 +177,8 @@ mkdir "$build_dir"
 
 pushd "$build_dir" > /dev/null 
 cmake -G Ninja \
+      -DLLVM_CCACHE_BUILD=On \
+      -DLLVM_CCACHE_DIR="$llvm_ccache_dir" \
       -DCMAKE_BUILD_TYPE=Debug \
       -DCMAKE_INSTALL_PREFIX="llvm-${version}" \
       -DLLVM_USE_LINKER=gold \
@@ -188,7 +191,7 @@ cmake -G Ninja \
       "$llvm_sources_dir"
 popd > /dev/null
 
-#-DLLVM_CCACHE_BUILD=On
+#
 # or
 #-DCMAKE_C_COMPILER_LAUNCHER=ccache 
 #-DCMAKE_CXX_COMPILER_LAUNCHER=ccache 
