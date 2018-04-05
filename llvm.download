@@ -183,7 +183,7 @@ cmake -G Ninja \
       -DCMAKE_INSTALL_PREFIX="$install_dir" \
       -DLLVM_USE_LINKER=gold \
       -DLLVM_TARGETS_TO_BUILD=host \
-      -DLLVM_INCLUDE_EXAMPLES=Off \
+      -DLLVM_INCLUDE_EXAMPLES=On \
       -DLLVM_INCLUDE_TESTS=Off \
       -DLLVM_ENABLE_EH=On \
       -DLLVM_ENABLE_RTTI=On \
