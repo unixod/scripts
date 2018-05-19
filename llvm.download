@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ########################
 # Setup error handling #
 ########################
@@ -8,7 +7,7 @@
 set -o nounset  # Prevent acidental usage of uninitialized variables
 set -o errtrace # Inherit trap on ERR for functions and subshells
 
-# sig: <err-code> <line-number> <command> ${BASH_LINENO[@]} "${FUNCNAME[@]}")"
+# args: <err-code> <line-number> <command> ${BASH_LINENO[@]} "${FUNCNAME[@]}")"
 function trapErr {
     local -r err_code=$1
     local -r line=$2
@@ -39,8 +38,7 @@ function trapErr {
 trap 'trapErr $? $LINENO "$BASH_COMMAND" ${BASH_LINENO[@]} "${FUNCNAME[@]}"' ERR
 
 
-
-### Check for correctness of arguments.
+### Check for correctness of command line arguments.
 
 if [ $# -ne 1 ]; then
     echo "Invalid number of arguments."
@@ -48,21 +46,25 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
+
 ##################
 # Constants      #
 ##################
+
 readonly version=$1
 
-# The following constants must contain absolute path.
+# The following constants must contain absolute paths.
 readonly archives_dir=$(pwd)/archives
 readonly llvm_sources_dir=$(pwd)/llvm-${version}.src
 readonly build_dir=$(pwd)/llvm-${version}.build
 readonly install_dir=$(pwd)/llvm-${version}
 readonly llvm_ccache_dir=$(pwd)/llvm-${version}.ccache
 
+
 #################
 # Facilities    #
 #################
+
 function logINFO: {
     echo "[INFO] ${0##*/}: $@"
 }
@@ -72,8 +74,7 @@ function fail: {
     exit 1
 }
 
-
-# sig: <package-name>
+# args: <package-name>
 function packageArchName {
     local -r pkg_name=$1
     if [ "$pkg_name" != clang ]; then
@@ -93,7 +94,7 @@ function packageContentDir {
 }
 
 
-# sig: <package-name>
+# args: <package-name>
 # This function checks if the archive of a package satisfies the following requirements
 # 1. At root there is only one directory with name: ${pkg_name}-${version}.src;
 # 2. Relative paths are used;
@@ -108,7 +109,7 @@ function checkArchContent {
     fi
 }
 
-# sig: <package-name>
+# args: <package-name>
 function downloadArch {
     local -r pkg_name=$1
     local -r arch_file=$(packageArchName "$pkg_name")
@@ -126,7 +127,7 @@ function downloadArch {
     popd > /dev/null
 }
 
-# sig: <package-name> <description> [<absolute-path-to-extract>]
+# args: <package-name> <description> [<absolute-path-to-extract>]
 function fetchPackage {
     local -r pkg_name=$1
     local -r description=$2
@@ -196,3 +197,8 @@ popd > /dev/null
 #-DCMAKE_C_COMPILER_LAUNCHER=ccache 
 #-DCMAKE_CXX_COMPILER_LAUNCHER=ccache 
 
+logINFO: "Done."
+echo
+echo "Now you can switch to the '$build_dir' directory and start building using 'ninja', the alternative way to build LLVM is to invoke a short command:"
+echo "  ninja -C '$build_dir'"
+echo
