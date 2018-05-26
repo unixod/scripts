@@ -200,5 +200,5 @@ popd > /dev/null
 logINFO: "Done."
 echo
 echo "Now you can switch to the '$build_dir' directory and start building using 'ninja', the alternative way to build LLVM is to invoke a short command:"
-echo "  ninja -C '$build_dir'"
+echo "  ninja -C '$build_dir' install"
 echo
