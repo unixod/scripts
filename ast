@@ -3,8 +3,6 @@
 set -o nounset  # Prevent acidental usage of uninitialized variables
 set -o errtrace # Inherit trap on ERR for functions and subshells
 
-readonly clang_check=${0%/*}/../Contrib/src-llvm/build-llvm-for_llvm_gcc11_with_MyKitWithCCache-Debug/bin/clang-check
-
 function show_help {
     echo "Usage"
     echo "    ${0##*/} list <path-to-cpp>"
@@ -29,12 +27,12 @@ case $subcommand in
             exit 1
         fi
         
-        "$clang_check" -ast-list "$cpp_src"
+        clang-check -ast-list "$cpp_src"
         ;;
     show)
         readonly pattern=${3:+-ast-dump-filter="$3"};
 
-        "$clang_check" -ast-dump "$cpp_src" "$pattern"
+        clang-check -ast-dump "$cpp_src" "$pattern"
         ;;
     *)
         echo "Invalid number of arguments"
