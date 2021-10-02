@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ $# -ne 2 ]; then
+    echo "Usage: "
+    echo
+    echo "  ${0##*/} <from> <count>"
+    exit 1
+fi
+
+readonly from=$1
+readonly count=$2
+
+awk -v l=$from -v cnt=$count '(l > FNR) || (FNR >= l + cnt)'

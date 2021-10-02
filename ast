@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -o nounset  # Prevent acidental usage of uninitialized variables
+set -o errtrace # Inherit trap on ERR for functions and subshells
+
+readonly clang_check=${0%/*}/../Contrib/src-llvm/build-llvm-for_llvm_gcc11_with_MyKitWithCCache-Debug/bin/clang-check
+
+function show_help {
+    echo "Usage"
+    echo "    ${0##*/} list <path-to-cpp>"
+    echo "    ${0##*/} show <path-to-cpp>"
+    echo "    ${0##*/} show <path-to-cpp> <pattern>"
+}
+
+if [ $# -lt 2 -o $# -gt 3 ]; then
+    echo "Invalid command line."
+    show_help
+    exit 1
+fi
+
+readonly subcommand=$1
+readonly cpp_src=$2
+
+case $subcommand in
+    list)
+        if [ $# -ne 2 ]; then
+            echo "Invalid number of arguments."
+            show_help
+            exit 1
+        fi
+        
+        "$clang_check" -ast-list "$cpp_src"
+        ;;
+    show)
+        readonly pattern=${3:+-ast-dump-filter="$3"};
+
+        "$clang_check" -ast-dump "$cpp_src" "$pattern"
+        ;;
+    *)
+        echo "Invalid number of arguments"
+        show_help
+        exit 1;
+esac
+
+#clang -Xclang -ast-dump "$src"
+

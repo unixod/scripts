@@ -1,0 +1,19 @@
+#!/bin/bash
+
+function show_usage_and_exit {
+    echo "Usage: "
+    echo "  ${BASH_SOURCE[0]##*/} <program> [<args>...]"
+    exit 1
+}
+
+if [ $# -eq 0 ]; then
+    echo "Incorrect number of arguments."
+    echo
+    show_usage_and_exit
+elif ! command -v "$1" &> /dev/null ; then
+    echo "Incorrect command line argument: first parameter must point to executable."
+    echo
+    show_usage_and_exit
+fi
+
+strace -f -e trace=network "$@"
