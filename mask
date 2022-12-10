@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+set -o nounset
+
+# TODO:
+# - Add check which would prevent placing overlay twise (is it necessary?);
+# - Enhence strategy with size (is it necessary parameter?);
+
+if [ $# -ne 2 ] || [ ! -d "${1:-}" ]; then
+    echo Usage:
+    echo "  ${0##*/} <target-dir> <write-buffer-size>"
+    echo ""
+    echo "For <write-buffer-size> see 'size' parameter of tmpfs (man tmpfs)."
+    exit 1
+fi
+
+readonly target_dir=$1
+readonly tmpfs_size=$2
+readonly ram_dir=$(mktemp -d -p "$(pwd)")
+
+echo "[1/5] INFO: Temporary directory created: '$ram_dir'"
+echo "[2/5] INFO: Mount tmpfs on '$ram_dir'"
+sudo mount -t tmpfs -o size=10M tmpfs "$ram_dir"
+readonly tmpfs_workdir=$ram_dir/workdir
+readonly tmpfs_upperdir=$ram_dir/upperdir
+
+echo "[3/5] INFO: Make directories for overlayfs within '$ram_dir'"
+mkdir "$tmpfs_workdir" "$tmpfs_upperdir"
+
+echo "[4/5] INFO: Mount overlayfs on '$target_dir'"
+sudo mount -t overlay overlay -o "lowerdir=$target_dir,upperdir=$tmpfs_upperdir,workdir=$tmpfs_workdir" "$target_dir"
+
+readonly turn_off_script=$(readlink -f "${target_dir}").turn_off
+echo "[5/5] INFO: Create a script for turning off tmpfs and overlay: '$turn_off_script' "
+
+cat > "$turn_off_script" <<EOF
+#!/bin/bash
+sudo umount "$(readlink -f "$target_dir")"
+sudo umount "$ram_dir"
+rm -r "$ram_dir"
+rm "$turn_off_script"
+EOF
+
+chmod +x "$turn_off_script"
+
+echo "Done."
+echo "Execute '$turn_off_script' once you want to trunoff tmpfs and overlay on '$target_dir'"
